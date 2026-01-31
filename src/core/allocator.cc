@@ -32,8 +32,34 @@ namespace infini
         // =================================== 作业 ===================================
         // TODO: 设计一个算法来分配内存，返回起始地址偏移量
         // =================================== 作业 ===================================
+        
+         // 1. first-fit from free blocks
+        for (auto it = free_blocks.begin(); it != free_blocks.end(); ++it)
+        {
+            size_t addr = it->first;
+            size_t block_size = it->second;
 
-        return 0;
+            if (block_size >= size)
+            {
+                // remove this free block
+                free_blocks.erase(it);
+
+                // split if needed
+                if (block_size > size)
+                {
+                    free_blocks[addr + size] = block_size - size;
+                }
+                used += size;
+                return addr;
+            }
+        }
+
+        // 2. allocate from heap top
+        size_t addr = peak;
+        used += size;
+        peak += size;
+
+        return addr;
     }
 
     void Allocator::free(size_t addr, size_t size)
@@ -44,6 +70,31 @@ namespace infini
         // =================================== 作业 ===================================
         // TODO: 设计一个算法来回收内存
         // =================================== 作业 ===================================
+        auto [it, success] = free_blocks.insert({addr, size});
+        IT_ASSERT(success);
+
+        used -= size;
+
+        auto next = std::next(it);
+        if (next != free_blocks.end() && it->first + it->second == next->first) {
+            it->second += next->second;
+            free_blocks.erase(next);
+        }
+
+        if (it != free_blocks.begin()) {
+            auto prev = std::prev(it);
+            if (prev->first + prev->second == it->first) {
+                prev->second += it->second;
+                free_blocks.erase(it);
+                it = prev;
+            }
+        }
+
+        auto last_it = free_blocks.rbegin();
+        if (last_it != free_blocks.rend() && last_it->first + last_it->second == peak) {
+            peak -= last_it->second;
+            free_blocks.erase(std::prev(free_blocks.end()));
+        }
     }
 
     void *Allocator::getPtr()
